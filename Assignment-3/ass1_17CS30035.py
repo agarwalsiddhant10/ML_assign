@@ -14,6 +14,9 @@
 import csv
 import numpy as np 
 import math
+import sys
+import random
+np.set_printoptions(threshold=sys.maxsize)
 
 def get_attribute_values(data, attribute):
     values=[]
@@ -63,8 +66,8 @@ def get_max_gain(data, metadata, attributes):
 
     for i in attributes:
         gain, num_val = get_gain(data, i, metadata)
-        if num_val == 1:
-            return -1
+        # if num_val == 1:
+        #     return -1
         if gain > max_gain:
             max_gain = gain
             attribute = i 
@@ -80,6 +83,7 @@ class Non_Leaf:
         self.child = []
         self.div = div
         self.attributes = attributes
+        # print(self.max_level)
 
     def set_child(self):
         self.attribute = get_max_gain(self.data, self.metadata, self.attributes)
@@ -87,20 +91,20 @@ class Non_Leaf:
         for attr in self.attributes:
             if attr != self.attribute:
                 attributes.append(attr)
-        if(self.attribute == -1):
-            return -1
+        # if(self.attribute == -1):
+        #     return -1
         if self.level < self.max_level :
             for val in self.metadata[self.attribute]:
-                node = Non_Leaf(self.data[np.where(self.data[:, self.attribute] == val)[0]], self.metadata, attributes, self.level + 1, div = val)
+                node = Non_Leaf(self.data[np.where(self.data[:, self.attribute] == val)[0]], self.metadata, attributes, self.level + 1, div = val, max_level = self.max_level)
                 self.child.append(node)
             for child in self.child:
-                val = child.div
+            #     val = child.div
                 check = child.set_child()
-                if check == -1:
-                    self.child.remove(child)
-                    new_child = Leaf(self.data[np.where(self.data[:, self.attribute] == val)[0]], self.metadata, div = val)
-                    new_child.get_class()
-                    self.child.append(new_child)
+            #     if check == -1:
+            #         self.child.remove(child)
+            #         new_child = Leaf(self.data[np.where(self.data[:, self.attribute] == val)[0]], self.metadata, div = val)
+            #         new_child.get_class()
+            #         self.child.append(new_child)
         else:
             for val in self.metadata[self.attribute]:
                 node = Leaf(self.data[np.where(self.data[:, self.attribute] == val)[0]],  self.metadata, div = val)
@@ -157,33 +161,108 @@ class Leaf:
         return self._class
 
 
+class AdaBoost:
+    def __init__(self, data, metadata, num_classifiers = 3, classifier_max_level = 1):
+        self.data = data 
+        self.metadata = metadata
+        self.num_classifiers = num_classifiers
+        self.classifier_max_level = classifier_max_level
+        # print('in adaboost', self.classifier_max_level)
+        self.weights = np.zeros(self.data.shape[0]-1)
+        self.classifiers = []
+        self.alphas = []
+        self.curr_data = None
+
+
+    def get_weights(self):
+        if self.weights[0]==0:
+            self.weights[:] = 1/(self.data.shape[0]-1)
+            return
+
+        eps = 0
+        for i, sample in enumerate(self.curr_data):
+            pred = self.classifiers[-1].classify(sample)
+            if pred != sample[-1]:
+                eps += self.weights[i]
+        
+        alpha = (1/2) * math.log((1-eps)/eps)
+        self.alphas.append(alpha)
+        for i, sample in enumerate(self.curr_data):
+            pred = self.classifiers[-1].classify(sample)
+            if pred != sample[-1]:
+                self.weights[i] = self.weights[i]*math.exp(-alpha)
+
+            else:
+                self.weights[i] = self.weights[i]*math.exp(alpha)
+
+        return
+
+    def train(self):
+        print('Training')
+        self.get_weights()
+        for iter in range(self.num_classifiers):
+
+            self.curr_data = random.choices(population = self.data[1:], weights = self.weights, k=self.data.shape[0]-1)
+            self.curr_data_t = np.vstack((self.data[0], self.curr_data))
+            classifier = Non_Leaf(self.curr_data_t, self.metadata, [0, 1, 2], 1, max_level = self.classifier_max_level)
+            classifier.set_child()
+            self.classifiers.append(classifier)
+            self.get_weights()
+            print('Classifier {} trained'.format(iter + 1))
+            # print(self.weights)
+
+        
+    def classify(self, sample):
+        yes = 0
+        no = 0
+        for i in range(self.num_classifiers):
+            pred = self.classifiers[i].classify(sample)
+            if (pred == 'yes'):
+                yes += self.alphas[i]
+            else:
+                no += self.alphas[i]
+
+        if (yes > no):
+            return 'yes'
+        else:
+            return 'no'
+
+
+    def display_classifiers(self):
+        for iter in range(self.num_classifiers):
+            print('##############Classifier {}##############'.format(iter + 1))
+            self.classifiers[iter].Display("", 1, self.data[0])
+            print('########################################')
+            
+
 
 def main():
     f = open('data3_19.csv', 'r')
     reader = csv.reader(f)
     data = list(reader)
     data = np.array(data)
-
-    print('-------------Dataset details-------------------- ')
-    print('number of attributes: ', data.shape[1]-1)
-    print('Number of training examples: ', data.shape[0] - 1)
-
     metadata = preprocess_data(data)
-    print('Metadata: ', metadata)
-
-    print('Training')
-
-    Decision_Tree = Non_Leaf(data, metadata, [0,1,2], 1)
-    Decision_Tree.set_child()
-    print('The trained tree is: ')
-    Decision_Tree.Display('', 1, data[0])
+    A = AdaBoost(data, metadata, num_classifiers = 3, classifier_max_level = 2)
+    A.train()
+    A.display_classifiers()
     count = 0
     for sample in data:
-        pred = Decision_Tree.classify(sample)
+        pred = A.classify(sample)
         if pred == sample[-1]:
             count = count + 1
 
     print('Training Accuracy: ', count * 100.0 /data.shape[0])
+
+    f = open('test3_19.csv', 'r')
+    reader = csv.reader(f)
+    data = list(reader)
+    data = np.array(data)
+    count = 0
+    for sample in data[1:]:
+        pred = A.classify(sample)
+        if pred == sample[-1]:
+            count = count + 1
+    print('Test Accuracy: ', count * 100.0 /data.shape[0] - 1)
 
 if __name__=='__main__':
     main()
