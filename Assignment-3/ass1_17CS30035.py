@@ -242,7 +242,7 @@ def main():
     data = list(reader)
     data = np.array(data)
     metadata = preprocess_data(data)
-    A = AdaBoost(data, metadata, num_classifiers = 3, classifier_max_level = 2)
+    A = AdaBoost(data, metadata, num_classifiers = 1, classifier_max_level = 1)
     A.train()
     A.display_classifiers()
     count = 0
