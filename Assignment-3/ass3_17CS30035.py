@@ -4,8 +4,11 @@
 #Roll No.: 17CS30035
 
 #####Execution Details#######
-#Python version used: 3.5.2
-#Numpy version: 1.17.0
+
+######IMPORTANT: Python 3.6 is used ##################
+#Python version used: 3.6.8
+######Important Please use python 3.6, random.choices is not available in python 3.5#############
+#Numpy version: 1.17.2
 
 
 ########## Code ##############
@@ -17,6 +20,13 @@ import math
 import sys
 import random
 np.set_printoptions(threshold=sys.maxsize)
+import sys
+
+if sys.version_info.major <3:
+    raise Exception("Use python >= 3.6")
+
+if sys.version_info.minor <6:
+    raise Exception("Use python >= 3.6")
 
 def get_attribute_values(data, attribute):
     values=[]
@@ -242,16 +252,18 @@ def main():
     data = list(reader)
     data = np.array(data)
     metadata = preprocess_data(data)
-    A = AdaBoost(data, metadata, num_classifiers = 1, classifier_max_level = 1)
+    print("Adaboost")
+    print("Each classifier is a decision tree with height 2. This can easily be changed in code.")
+    A = AdaBoost(data, metadata, num_classifiers = 3, classifier_max_level = 2)
     A.train()
     A.display_classifiers()
     count = 0
-    for sample in data:
+    for sample in data[1:]:
         pred = A.classify(sample)
         if pred == sample[-1]:
             count = count + 1
 
-    print('Training Accuracy: ', count * 100.0 /data.shape[0])
+    print('Training Accuracy: ', count * 100.0 /(data.shape[0] -1 ))
 
     f = open('test3_19.csv', 'r')
     reader = csv.reader(f)
@@ -262,7 +274,7 @@ def main():
         pred = A.classify(sample)
         if pred == sample[-1]:
             count = count + 1
-    print('Test Accuracy: ', count * 100.0 /data.shape[0] - 1)
+    print('Test Accuracy: ', count * 100.0 /(data.shape[0]-1))
 
 if __name__=='__main__':
     main()
